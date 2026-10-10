@@ -71,9 +71,16 @@ try {
   const size = Buffer.byteLength(next);
 
   if (check) {
-    if (current !== next) {
+    // Compare content, not line endings: a Windows checkout may rewrite LF to CRLF
+    // (autocrlf), and a red CI badge on that basis teaches nobody anything. Real drift
+    // — any byte outside the line-ending convention — still fails.
+    const normalize = (s) => s.replace(/\r\n/g, '\n');
+    if (normalize(current) !== normalize(next)) {
       console.error('tier.js is OUT OF DATE — run: node tools/sync-core.mjs');
       process.exit(1);
+    }
+    if (current !== next) {
+      console.log('tier.js matches the pinned source (line endings differ: working copy is CRLF).');
     }
     console.log(`tier.js is up to date with ${PANEL_REPO}@${PANEL_PIN.slice(0, 7)} (CORE sha256 ${sha256.slice(0, 16)}…)`);
   } else {

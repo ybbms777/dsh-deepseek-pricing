@@ -1,0 +1,6 @@
+# Keep generated JS and YAML byte-stable across platforms: the drift guard
+# (tools/sync-core.mjs --check) compares tier.js against the pinned panel commit.
+* text=auto eol=lf
+
+tier.js text eol=lf
+package-lock.json text eol=lf
