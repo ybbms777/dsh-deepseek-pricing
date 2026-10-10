@@ -1,0 +1,36 @@
+{
+  "name": "dsh-deepseek-pricing",
+  "version": "0.1.0",
+  "description": "DSH plugin: DeepSeek API peak/off-peak billing window tool (deepseek_pricing_tier) — tier, next switch, live prices.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./tier.js": "./tier.js"
+  },
+  "files": [
+    "index.js",
+    "tier.js",
+    "cordis.patch.yml"
+  ],
+  "scripts": {
+    "sync:core": "node tools/sync-core.mjs",
+    "test": "node --test"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek",
+    "pricing",
+    "cost",
+    "off-peak"
+  ],
+  "license": "MIT"
+}
