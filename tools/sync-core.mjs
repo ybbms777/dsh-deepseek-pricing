@@ -22,7 +22,7 @@ const ROOT = path.resolve(HERE, '..');
 const OUT = path.join(ROOT, 'tier.js');
 
 const PANEL_REPO = 'ybbms777/deepseek-pricing-panel';
-const PANEL_PIN = 'a8ed932ed9e33b85b33038577a8b9932dbbce439';
+const PANEL_PIN = '12246379bc5c94e5a62b69efb22fa4d3b1cd2e0b';
 const DEFAULT_SOURCE = `https://raw.githubusercontent.com/${PANEL_REPO}/${PANEL_PIN}/index.html`;
 
 function readSource(spec) {
@@ -55,7 +55,12 @@ ${core}
 
 const MODEL_NAMES = Object.fromEntries(Object.entries(PRICES).map(([m, v]) => [m, v.ver]));
 
-export { tierAt, nextSwitch, daySegments, bj, HOLIDAYS, PRICES, MODEL_NAMES };
+export {
+  tierAt, nextSwitch, daySegments, bj, HOLIDAYS, PRICES, MODEL_NAMES,
+  // Added when the panel gained shared reason keys and calendar-coverage reporting:
+  // the plugin must consume the same contract instead of re-implementing it.
+  tierReason, DATA_METADATA, calendarCoverage, coverageWarnings,
+};
 `;
 }
 

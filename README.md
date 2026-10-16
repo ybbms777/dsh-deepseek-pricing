@@ -12,7 +12,7 @@ Registering one tool:
 
 | Tool | What it returns |
 |---|---|
-| `deepseek_pricing_tier` | `tier` (`peak`/`off`), `reason`, Beijing wall clock, today's peak windows, the next switch time + countdown, per-model prices for the live tier, and optionally the upcoming switches |
+| `deepseek_pricing_tier` | `tier` (`peak`/`off`), the canonical `reason` key (shared with the [panel](https://github.com/ybbms777/deepseek-pricing-panel) and its CLI), Beijing wall clock, today's peak windows, the next switch time + countdown, per-model prices for the live tier, `data_metadata` (pricing-check date + source + holiday-year coverage), `calendar_coverage` / `current_calendar_covered` / `warnings`, and — when `days > 0` — the upcoming switches in the rolling window `[at, at + days×24h)` |
 
 ## Install
 
@@ -24,7 +24,7 @@ The package declares `dsh.bundle.patch`, so `dsh plugin` activates it as a profi
 
 ## Why an agent wants this
 
-Off-peak is **exactly 50% of peak** and is decided by when a request *finishes*. Before launching a large batch, retrieval sweep or evaluation run, the agent can ask:
+Off-peak is **exactly 50% of peak**. DeepSeek's pricing page states the peak windows but **does not say how a request that spans a tier boundary is assigned**, so this plugin does not claim to know: treat the actual bill as the authority. What it does tell you is which tier an instant falls in:
 
 > peak hours are Beijing (UTC+8) Mon–Fri 09:00–12:00 and 14:00–18:00, excluding Chinese public holidays; everything else — weekday nights, the 12:00–14:00 lunch break, all weekend, all holidays — is half price.
 

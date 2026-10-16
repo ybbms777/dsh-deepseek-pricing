@@ -1,5 +1,8 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { tierAt, nextSwitch, daySegments, bj, HOLIDAYS, PRICES, MODEL_NAMES } from './tier.js'
+import {
+  tierAt, nextSwitch, daySegments, bj, PRICES, MODEL_NAMES,
+  tierReason, DATA_METADATA, calendarCoverage, coverageWarnings,
+} from './tier.js'
 
 export const name = 'dsh-deepseek-pricing'
 export const inject = ['tools']
@@ -16,12 +19,13 @@ function humanDuration(ms) {
   return `${Math.floor(s / 86400)}d ${pad(Math.floor((s % 86400) / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`
 }
 
-/** Explain a tier from the calendar facts, not from the clock alone. */
-function why(p, segs) {
-  if (HOLIDAYS.has(p.key)) return 'Chinese public holiday'
-  if (p.wd === 0 || p.wd === 6) return 'weekend'
-  if (segs.length) return 'outside the weekday peak windows (Beijing 09:00-12:00, 14:00-18:00)'
-  return 'weekday with no peak window today'
+// The panel (and the panel's CLI) own the canonical reason keys; this plugin must not
+// invent its own. Map the shared keys to prose for the human-readable rendering only.
+const REASON_TEXT = {
+  'public holiday': 'Chinese public holiday',
+  'weekend': 'weekend',
+  'inside the weekday peak windows': 'inside the weekday peak windows (Beijing 09:00-12:00, 14:00-18:00)',
+  'outside the weekday peak windows': 'outside the weekday peak windows (Beijing 09:00-12:00, 14:00-18:00)',
 }
 
 /**
@@ -35,6 +39,11 @@ export function evaluate(atMs, days = 0) {
   const nx = nextSwitch(atMs)
   const offPeak = tier === 'off'
   const idx = offPeak ? 0 : 1
+
+  const horizon = atMs + days * 86400000
+  // Coverage must include every date consulted for the next switch, plus the forecast window.
+  const coverageEnd = Math.max(atMs + 1, horizon, nx ? nx + 1 : atMs + 15 * 86400000)
+  const warnings = coverageWarnings(atMs, coverageEnd)
 
   const prices = Object.fromEntries(
     Object.entries(PRICES).map(([model, v]) => [
@@ -54,7 +63,11 @@ export function evaluate(atMs, days = 0) {
     weekday: WEEKDAYS[p.wd],
     tier,
     off_peak: offPeak,
-    reason: why(p, segs),
+    reason: tierReason(atMs),
+    data_metadata: DATA_METADATA,
+    calendar_coverage: calendarCoverage(atMs, coverageEnd),
+    current_calendar_covered: calendarCoverage(atMs).complete,
+    warnings,
     today_peak_windows: segs.map((s) => `${hhmm(s.h0)}-${hhmm(s.h1)}`),
     next_switch_beijing: nx ? bjStamp(bj(nx)) : '',
     seconds_until_switch: nx ? Math.max(0, Math.floor((nx - atMs) / 1000)) : -1,
@@ -64,16 +77,20 @@ export function evaluate(atMs, days = 0) {
   }
 
   if (days > 0) {
-    let t = atMs
-    for (let i = 0; i < days * 3 + 1; i++) {
-      const n = nextSwitch(t)
-      if (!n) break
+    // Same window as the panel's CLI: rolling [at, at + days*24h), includes a switch
+    // exactly at the start, excludes the end. No event-count truncation.
+    let n = tierAt(atMs - 1) !== tier ? atMs : nx
+    while (n !== null && n < horizon) {
       value.upcoming_switches.push({
         at_beijing: bjStamp(bj(n)),
         to: tierAt(n) === 'peak' ? 'peak (full price)' : 'off-peak (half price)',
       })
-      t = n
-      if (value.upcoming_switches.length >= days * 3) break
+      n = nextSwitch(n)
+    }
+    value.switch_window = {
+      start_beijing: bjStamp(bj(atMs)),
+      end_beijing_exclusive: bjStamp(bj(horizon)),
+      days,
     }
   }
 
@@ -118,7 +135,8 @@ export function apply(ctx) {
         type: 'integer',
         default: 0,
         description:
-          `When greater than 0, also list the upcoming switches (about ${MAX_DAYS} days max).`,
+          `When greater than 0 (max ${MAX_DAYS}), list switches in the rolling window ` +
+          '[at, at + days×24h): a switch exactly at the start is included, the end is excluded.',
       },
       format: {
         type: 'string',
@@ -136,7 +154,33 @@ export function apply(ctx) {
           weekday: { type: 'string' },
           tier: { type: 'string', enum: ['off', 'peak'] },
           off_peak: { type: 'boolean' },
-          reason: { type: 'string' },
+          reason: { type: 'string', description: 'Canonical reason key, shared with the panel and its CLI.' },
+          data_metadata: {
+            type: 'object',
+            additionalProperties: true,
+            description: 'pricing_checked_on / pricing_source / holiday_years / holiday_source.',
+          },
+          calendar_coverage: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              complete: { type: 'boolean' },
+              missing_years: { type: 'array', items: { type: 'integer' } },
+            },
+            description: 'Whether holiday data covers every year consulted for this answer.',
+          },
+          current_calendar_covered: { type: 'boolean' },
+          warnings: { type: 'array', items: { type: 'string' } },
+          switch_window: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              start_beijing: { type: 'string' },
+              end_beijing_exclusive: { type: 'string' },
+              days: { type: 'integer' },
+            },
+            description: 'Present only when days > 0.',
+          },
           today_peak_windows: { type: 'array', items: { type: 'string' } },
           next_switch_beijing: { type: 'string', description: 'Empty when no switch was found within 15 days.' },
           seconds_until_switch: { type: 'integer', description: '-1 when no switch was found within 15 days.' },
@@ -164,15 +208,18 @@ export function apply(ctx) {
           return [{ type: 'text', text: JSON.stringify(value, null, 2) }]
         }
         const lines = [
-          value.off_peak
+          (value.off_peak
             ? 'OFF-PEAK — DeepSeek bills half price right now'
-            : 'PEAK — DeepSeek bills full price right now',
-          `now (Beijing): ${value.evaluated_at_beijing} (${value.weekday}) — ${value.reason}`,
+            : 'PEAK — DeepSeek bills full price right now') +
+          (value.current_calendar_covered ? '' : ' (estimate; holidays not maintained)'),
+          `now (Beijing): ${value.evaluated_at_beijing} (${value.weekday}) — ${REASON_TEXT[value.reason] ?? value.reason}`,
           `today's peak windows: ${value.today_peak_windows.length ? value.today_peak_windows.join(', ') + ' (Beijing)' : 'none'}`,
         ]
         if (value.next_switch_beijing) {
           lines.push(`next switch: ${value.next_switch_beijing} → ${value.next_switch_to} (in ${humanDuration(value.seconds_until_switch * 1000)})`)
         }
+        lines.push(`pricing checked ${value.data_metadata.pricing_checked_on} · holiday years ${value.data_metadata.holiday_years.join(', ')}`)
+        for (const w of value.warnings) lines.push(`warning: ${w}`)
         for (const [model, v] of Object.entries(value.prices_rmb_per_1m_tokens)) {
           lines.push(`${model}: in(cache miss) ${v.input_cache_miss} / out ${v.output} RMB per 1M — ${v.model_version}, concurrency ${v.concurrency_limit}`)
         }

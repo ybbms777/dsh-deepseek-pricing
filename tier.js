@@ -1,8 +1,8 @@
 // GENERATED FILE — DO NOT EDIT BY HAND.
 // The peak/off-peak rule lives in one place: the panel's index.html CORE block.
-// Source: https://github.com/ybbms777/deepseek-pricing-panel @ a8ed932ed9e33b85b33038577a8b9932dbbce439
+// Source: https://github.com/ybbms777/deepseek-pricing-panel @ 12246379bc5c94e5a62b69efb22fa4d3b1cd2e0b
 //         index.html
-// CORE sha256: 9c9a3dda7706b309c9c57a896a4dd89fa3f265340e26c89271fde8ae35282b62
+// CORE sha256: b187f8cf8ef8611cb7ec2f5b9e77e3561eb95ecb912ece33919dd997507ab588
 // Regenerate: node tools/sync-core.mjs
 // ---- 纯逻辑：不依赖 DOM，可在 node 中独立测试 ----
 const TZ = 8 * 3600 * 1000; // 北京时间 = UTC+8
@@ -57,7 +57,38 @@ const PRICES = {
   'deepseek-v4-pro': {ver:'DeepSeek-V4-Pro（0813 版）', hit:[0.15,0.30],  miss:[4.5,9.0],   out:[13.5,27.0],  conc:500}
 };
 const WD=['周日','周一','周二','周三','周四','周五','周六'];
+const DATA_METADATA = {
+  pricing_checked_on: '2026-10-15',
+  pricing_source: 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing/',
+  holiday_years: [2026],
+  holiday_source: '国务院办公厅《关于2026年部分节假日安排的通知》',
+  model_mapping_checked_on: '2026-10-10'
+};
+// Coverage is measured over a half-open time interval [start, end).
+function calendarCoverage(start, end = start + 1) {
+  const missing_years = [];
+  for (let y = bj(start).y; y <= bj(Math.max(start, end - 1)).y; y++) {
+    if (!DATA_METADATA.holiday_years.includes(y)) missing_years.push(y);
+  }
+  return { complete: missing_years.length === 0, missing_years };
+}
+function coverageWarnings(start, end) {
+  const { missing_years } = calendarCoverage(start, end);
+  return missing_years.length
+    ? ['节假日数据未覆盖 ' + missing_years.join('、') + ' 年；该年份的时段、切换和汇总仅按周规则估算，需核对官方放假安排。'] : [];
+}
+function tierReason(ts) {
+  const p = bj(ts);
+  return HOLIDAYS.has(p.key) ? 'public holiday'
+    : (p.wd === 0 || p.wd === 6) ? 'weekend'
+    : tierAt(ts) === 'peak' ? 'inside the weekday peak windows' : 'outside the weekday peak windows';
+}
 
 const MODEL_NAMES = Object.fromEntries(Object.entries(PRICES).map(([m, v]) => [m, v.ver]));
 
-export { tierAt, nextSwitch, daySegments, bj, HOLIDAYS, PRICES, MODEL_NAMES };
+export {
+  tierAt, nextSwitch, daySegments, bj, HOLIDAYS, PRICES, MODEL_NAMES,
+  // Added when the panel gained shared reason keys and calendar-coverage reporting:
+  // the plugin must consume the same contract instead of re-implementing it.
+  tierReason, DATA_METADATA, calendarCoverage, coverageWarnings,
+};
