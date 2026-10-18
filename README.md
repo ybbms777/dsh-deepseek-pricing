@@ -6,13 +6,13 @@
 ![dsh-plugin](https://img.shields.io/badge/dsh--plugin-cordis%20bundle-blueviolet)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
-A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin that answers the two questions that decide a DeepSeek API bill: **is the API on peak (full price) or off-peak (exactly half price) right now**, and **when does it flip**. It also reports today's peak windows and the live list prices for the tier you are in.
+A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin that answers the two questions that decide a DeepSeek API bill: **is the API on peak (full price) or off-peak (exactly half price) right now**, and **when does it flip**. It also reports today's peak windows and the per-model prices for that tier from a **bundled rate card** transcribed from [DeepSeek's pricing page](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/) on **2026-10-15** (`data_metadata.pricing_checked_on`). The built-in China public-holiday calendar covers **2026 only**. Prices are not fetched at runtime.
 
 Registering one tool:
 
 | Tool | What it returns |
 |---|---|
-| `deepseek_pricing_tier` | `tier` (`peak`/`off`), the canonical `reason` key (shared with the [panel](https://github.com/ybbms777/deepseek-pricing-panel) and its CLI), Beijing wall clock, today's peak windows, the next switch time + countdown, per-model prices for the live tier, `data_metadata` (pricing-check date + source + holiday-year coverage), `calendar_coverage` / `current_calendar_covered` / `warnings`, and — when `days > 0` — the upcoming switches in the rolling window `[at, at + days×24h)` |
+| `deepseek_pricing_tier` | `tier` (`peak`/`off`), the canonical `reason` key (shared with the [panel](https://github.com/ybbms777/deepseek-pricing-panel) and its CLI), Beijing wall clock, today's peak windows, the next switch time + countdown, per-model prices from the bundled rate card (checked 2026-10-15; not a live fetch), `data_metadata` (pricing-check date + source + holiday-year coverage; holidays are 2026 only), `calendar_coverage` / `current_calendar_covered` / `warnings`, and — when `days > 0` — the upcoming switches in the rolling window `[at, at + days×24h)` |
 
 ## Install
 
@@ -28,7 +28,7 @@ Off-peak is **exactly 50% of peak**. DeepSeek's pricing page states the peak win
 
 > peak hours are Beijing (UTC+8) Mon–Fri 09:00–12:00 and 14:00–18:00, excluding Chinese public holidays; everything else — weekday nights, the 12:00–14:00 lunch break, all weekend, all holidays — is half price.
 
-So a job that can wait costs half as much. The tool is pure arithmetic on DeepSeek's published rate card: **no network calls, no API key, no credentials**, `isConcurrencySafe` is true, and it never writes anything.
+So a job that can wait costs half as much. The tool is pure arithmetic on a bundled rate card transcribed from DeepSeek's pricing page on 2026-10-15, plus a China holiday calendar that covers 2026 only: **no network calls, no API key, no credentials**, `isConcurrencySafe` is true, and it never writes anything.
 
 ## Use
 
@@ -46,6 +46,7 @@ PEAK — DeepSeek bills full price right now
 now (Beijing): 2026-10-12 09:30:00 (Monday) — outside the weekday peak windows (Beijing 09:00-12:00, 14:00-18:00)
 today's peak windows: 09:00-12:00, 14:00-18:00 (Beijing)
 next switch: 2026-10-12 12:00:00 → off-peak (half price) (in 0d 02:30:00)
+pricing checked 2026-10-15 · holiday years 2026
 deepseek-flash: in(cache miss) 2 / out 8 RMB per 1M — DeepSeek-V4.1-Flash, concurrency 2500
 deepseek-v4-pro: in(cache miss) 9 / out 27 RMB per 1M — DeepSeek-V4-Pro（0813 版）, concurrency 500
 ```
@@ -68,17 +69,17 @@ npm ci
 node --test
 ```
 
-16 tests, no test framework beyond Node's own runner. `tests/plugin.test.mjs` **boots the real harness packages**: a real `@deepseek-ai/cordis` context with a real `@deepseek-ai/dsh-tools` `ToolRegistry`, mounts the plugin with `ctx.plugin()`, and executes the tool through the registry pipeline — asserting the model-facing schema, the rendered summary, the JSON value, the error path for an unusable `at`, and the prompt-section wiring. The only stand-in is the `systemPrompt` service the registry injects (a two-method stub). CI runs the suite on Ubuntu + Windows × Node 20/22 plus the drift check.
+18 tests, no test framework beyond Node's own runner. `tests/plugin.test.mjs` **boots the real harness packages**: a real `@deepseek-ai/cordis` context with a real `@deepseek-ai/dsh-tools` `ToolRegistry`, mounts the plugin with `ctx.plugin()`, and executes the tool through the registry pipeline — asserting the model-facing schema, the rendered summary, the JSON value, the error path for an unusable `at`, and the prompt-section wiring. The only stand-in is the `systemPrompt` service the registry injects (a two-method stub). CI runs the suite on Ubuntu + Windows × Node 20/22 plus the drift check.
 
 ## Model names
 
-`deepseek-flash` is **DeepSeek-V4.1-Flash**, not V4-Flash: the legacy ids `deepseek-v4-flash` / `deepseek-v4-flash-vision-exp` still resolve, but those models are retired and requests are served by V4.1-Flash at Flash prices. `deepseek-v4-pro` is DeepSeek-V4-Pro. Both ids and versions were verified against a live `GET api.deepseek.com/models`.
+`deepseek-flash` is **DeepSeek-V4.1-Flash**, not V4-Flash: the legacy ids `deepseek-v4-flash` / `deepseek-v4-flash-vision-exp` still resolve, but those models are retired and requests are served by V4.1-Flash at Flash prices. `deepseek-v4-pro` is DeepSeek-V4-Pro. Both ids and versions were checked on 2026-10-10 (`data_metadata.model_mapping_checked_on`) against `GET https://api.deepseek.com/models`. The plugin does not call that endpoint at runtime.
 
 ## Caveats
 
-- Prices and the schedule are transcribed from DeepSeek's published pricing page and can change; this plugin visualises the published rule, it does not enforce it.
+- Prices are a bundled rate card transcribed from DeepSeek's pricing page on 2026-10-15. They are not fetched live. If the published prices change, the card stays stale until the panel pin is regenerated.
 - A government make-up workday (调休上班日) is **off-peak** under the rule, because DeepSeek distinguishes only Mon–Fri from weekend.
-- The 2026 China holiday calendar is built in; a new year's notice needs a re-pin (`tools/sync-core.mjs` after updating `HOLIDAYS` upstream in the panel).
+- The built-in China holiday calendar covers 2026 only. A later year is estimated from the weekday rule and reported as uncovered (`calendar_coverage` / `warnings`) until `HOLIDAYS` is updated upstream and this package is re-pinned with `tools/sync-core.mjs`.
 
 ## License
 
@@ -88,9 +89,9 @@ MIT.
 
 ## 简体中文
 
-这是一个 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 插件，回答决定 DeepSeek API 账单的两个问题：**现在按高峰（全价）还是空闲（正好半价）计费**、**下一次切换在几点**，并给出今天的高峰窗口与当前生效单价。
+这是一个 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 插件，回答决定 DeepSeek API 账单的两个问题：**现在按高峰（全价）还是空闲（正好半价）计费**、**下一次切换在几点**，并给出今天的高峰窗口。各模型单价来自**内置价目表**，于 **2026-10-15** 从 [DeepSeek 定价页](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/) 誊录（即 `data_metadata.pricing_checked_on`），运行时不联网刷新。内置的中国法定节假日日历**只覆盖 2026 年**。
 
-注册的工具：`deepseek_pricing_tier` —— 返回 `tier`（peak/off）、判定原因、北京时间、今天的高峰窗口、下次切换时刻与倒计时、各模型当前单价，可选未来若干天的切换列表。
+注册的工具：`deepseek_pricing_tier` —— 返回 `tier`（peak/off）、判定原因、北京时间、今天的高峰窗口、下次切换时刻与倒计时、内置价目表中该档位的各模型单价（核对日期 2026-10-15，不是实时拉取；节假日只覆盖 2026 年），可选未来若干天的切换列表。
 
 **安装**：
 
@@ -100,10 +101,10 @@ dsh plugin --profile web add "github:ybbms777/dsh-deepseek-pricing"
 
 包内声明了 `dsh.bundle.patch`，`dsh plugin` 会把它作为 profile 层启用；重启 `dsh --profile web` 后在「设置 → 插件」中查看。
 
-**为什么 Agent 需要它**：空闲价正好是高峰的 50%，只取决于请求什么时候跑完。高峰 = 北京时间（UTC+8）周一至周五 09:00–12:00、14:00–18:00（不含中国法定节假日）；其余全部时段 —— 工作日夜里、午休、整个周末、整个节假日 —— 都是半价。所以能等的批处理任务，成本直接减半。纯本地算术：**不联网、不需要 API key、不写任何文件**。
+**为什么 Agent 需要它**：空闲价正好是高峰的 50%，只取决于请求什么时候跑完。高峰 = 北京时间（UTC+8）周一至周五 09:00–12:00、14:00–18:00（不含中国法定节假日）；其余全部时段 —— 工作日夜里、午休、整个周末、整个节假日 —— 都是半价。所以能等的批处理任务，成本直接减半。单价是 2026-10-15 誊录的内置价目表，节假日数据只覆盖 2026 年。纯本地算术：**不联网、不需要 API key、不写任何文件**。
 
 **一份实现，两个消费者**：峰谷规则**没有**在这里重写。`tier.js` 由 `tools/sync-core.mjs` 从 [deepseek-pricing-panel](https://github.com/ybbms777/deepseek-pricing-panel) 的 `index.html` 里 `/*CORE-START*/ … /*CORE-END*/` 段按固定 commit 原样生成，文件头记录来源 commit 与 CORE 段的 SHA-256，`node tools/sync-core.mjs --check` 在 CI 里守住不漂移 —— 因此面向模型的工具与面向人的 HTML 面板不可能对规则产生分歧。
 
-**测试**：`npm ci && node --test`，16 个用例、只用 Node 自带 runner。其中 `tests/plugin.test.mjs` 会**真的启动 harness 包**（真实的 `@deepseek-ai/cordis` 上下文 + 真实的 `dsh-tools` `ToolRegistry`），用 `ctx.plugin()` 挂载插件并走注册中心管线执行工具。
+**测试**：`npm ci && node --test`，18 个用例、只用 Node 自带 runner。其中 `tests/plugin.test.mjs` 会**真的启动 harness 包**（真实的 `@deepseek-ai/cordis` 上下文 + 真实的 `dsh-tools` `ToolRegistry`），用 `ctx.plugin()` 挂载插件并走注册中心管线执行工具。
 
-**注意**：`deepseek-flash` 是 **DeepSeek-V4.1-Flash**（不是 V4-Flash，旧模型名已下线但由 V4.1-Flash 承接）；调休上班日按规则算空闲半价；单价与规则以官方定价页为准。
+**注意**：`deepseek-flash` 是 **DeepSeek-V4.1-Flash**（不是 V4-Flash，旧模型名已下线但由 V4.1-Flash 承接；模型 id 于 2026-10-10 对照过 `GET https://api.deepseek.com/models`，插件运行时不请求该接口）。调休上班日按规则算空闲半价。单价是 2026-10-15 从官方定价页誊录的内置价目表，不是实时拉取；节假日日历只覆盖 2026 年，新年安排需要在上游面板更新 `HOLIDAYS` 后重新 pin。

@@ -12,6 +12,7 @@ import assert from 'node:assert/strict'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolRegistry } from '@deepseek-ai/dsh-tools'
 import * as plugin from '../index.js'
+import { DATA_METADATA } from '../tier.js'
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -64,6 +65,11 @@ test('model-facing schema keeps the declared parameters', () => {
   assert.deepEqual(Object.keys(props).sort(), ['at', 'days', 'format'])
   assert.equal(props.format.enum.join(','), 'summary,json')
   assert.match(fn.description, /half price/)
+  assert.match(fn.description, /bundled rate card/)
+  assert.match(fn.description, new RegExp(DATA_METADATA.pricing_checked_on))
+  assert.match(fn.description, /covers 2026 only/)
+  assert.deepEqual(DATA_METADATA.holiday_years, [2026])
+  assert.doesNotMatch(fn.description, /live list prices|live prices/)
 })
 
 test('peak window renders the full-price warning', async () => {
@@ -74,6 +80,8 @@ test('peak window renders the full-price warning', async () => {
   assert.match(text, /next switch: 2026-10-12 12:00:00/)
   assert.match(text, /today's peak windows: 09:00-12:00, 14:00-18:00 \(Beijing\)/)
   assert.match(text, /deepseek-flash: in\(cache miss\) 2 \/ out 8 RMB per 1M/)
+  assert.match(text, new RegExp(`pricing checked ${DATA_METADATA.pricing_checked_on}`))
+  assert.match(text, /holiday years 2026/)
 })
 
 test('lunch break renders the half-price case with the doubled-off rates', async () => {

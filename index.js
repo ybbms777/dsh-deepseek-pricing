@@ -119,11 +119,13 @@ export function apply(ctx) {
     name: 'deepseek_pricing_tier',
     description:
       'Report whether the DeepSeek API is billing at peak (full price) or off-peak ' +
-      '(exactly half price) right now, plus the next peak/off-peak switch time in ' +
-      'Beijing time and the live list prices per 1M tokens. Peak hours are Beijing ' +
-      '(UTC+8) Monday-Friday 09:00-12:00 and 14:00-18:00, excluding Chinese public ' +
-      'holidays; every other instant, including all weekends and holidays, is ' +
-      'off-peak. Use it before scheduling DeepSeek batch work: the same tokens cost ' +
+      '(exactly half price) at an instant, plus the next peak/off-peak switch time in ' +
+      'Beijing time and per-model prices from a bundled rate card (RMB per 1M tokens). ' +
+      'The rate card was transcribed from DeepSeek\'s pricing page on 2026-10-15 and is ' +
+      'not fetched live. Peak hours are Beijing (UTC+8) Monday-Friday 09:00-12:00 and ' +
+      '14:00-18:00, excluding Chinese public holidays; the built-in holiday calendar ' +
+      'covers 2026 only. Every other instant, including weekends and covered holidays, ' +
+      'is off-peak. Use it before scheduling DeepSeek batch work: the same tokens cost ' +
       'twice as much inside a peak window.',
     parameters: {
       at: {
