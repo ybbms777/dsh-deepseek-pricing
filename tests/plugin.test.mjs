@@ -4,13 +4,22 @@
 //
 //   npm ci && node --test
 //
-// The only stand-in is the `systemPrompt` service ToolRegistry injects: DSH provides it,
+// The only stand-in is the `systemPrompt` service the tool registry injects: DSH provides it,
 // and here it is a two-method stub (tools()/section()) good enough for construction.
+//
+// 0.0.1-rc.1 exports that service as ToolRegistry. From 0.0.1-rc.5 onward, including
+// the 0.2.0-rc.2 line, the same service is exported as ToolRuntime and still mounts
+// on ctx.tools with register / schemas / execute.
 
 import { test, before } from 'node:test'
 import assert from 'node:assert/strict'
 import { Context } from '@deepseek-ai/cordis'
-import { ToolRegistry } from '@deepseek-ai/dsh-tools'
+import * as dshTools from '@deepseek-ai/dsh-tools'
+
+const ToolRegistry = dshTools.ToolRegistry ?? dshTools.ToolRuntime
+if (typeof ToolRegistry !== 'function') {
+  throw new Error('@deepseek-ai/dsh-tools exports neither ToolRegistry nor ToolRuntime')
+}
 import * as plugin from '../index.js'
 import { DATA_METADATA } from '../tier.js'
 

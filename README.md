@@ -20,7 +20,7 @@ Registering one tool:
 dsh plugin --profile web add "github:ybbms777/dsh-deepseek-pricing"
 ```
 
-The package declares `dsh.bundle.patch`, so `dsh plugin` activates it as a profile layer. Restart `dsh --profile web` afterwards, then check **Settings → Plugins**. Peer dependencies: `@deepseek-ai/cordis` (^4.0.1) and `@deepseek-ai/dsh-tools` (^0.0.1-rc.1).
+The package declares `dsh.bundle.patch`, so `dsh plugin` activates it as a profile layer. Restart `dsh --profile web` afterwards, then check **Settings → Plugins**. Peer dependencies: `@deepseek-ai/cordis` (^4.0.1; both of the DSH lines below ship 4.0.5) and `@deepseek-ai/dsh-tools` (`^0.0.1-rc.1 || ^0.2.0-rc.2`). DSH 0.2 compares its own runtime version to each `@deepseek-ai/dsh-*` peer range with prerelease matching, and that range covers the 0.0.1-rc line and the 0.2.x line from 0.2.0-rc.2.
 
 ## Why an agent wants this
 
@@ -69,7 +69,7 @@ npm ci
 node --test
 ```
 
-18 tests, no test framework beyond Node's own runner. `tests/plugin.test.mjs` **boots the real harness packages**: a real `@deepseek-ai/cordis` context with a real `@deepseek-ai/dsh-tools` `ToolRegistry`, mounts the plugin with `ctx.plugin()`, and executes the tool through the registry pipeline — asserting the model-facing schema, the rendered summary, the JSON value, the error path for an unusable `at`, and the prompt-section wiring. The only stand-in is the `systemPrompt` service the registry injects (a two-method stub). CI runs the suite on Ubuntu + Windows × Node 20/22 plus the drift check.
+18 tests, no test framework beyond Node's own runner. `tests/plugin.test.mjs` **boots the real harness packages**: a real `@deepseek-ai/cordis` context with a real `@deepseek-ai/dsh-tools` tool registry (`ToolRegistry` on 0.0.1-rc.1, `ToolRuntime` from 0.0.1-rc.5), mounts the plugin with `ctx.plugin()`, and executes the tool through the registry pipeline — asserting the model-facing schema, the rendered summary, the JSON value, the error path for an unusable `at`, and the prompt-section wiring. The only stand-in is the `systemPrompt` service the registry injects (a two-method stub). CI runs the suite on Ubuntu + Windows × Node 20/22 × `dsh-tools` 0.0.1-rc.5 and 0.2.0-rc.2 (both with cordis 4.0.5), plus the drift check.
 
 ## Model names
 
@@ -99,7 +99,7 @@ MIT.
 dsh plugin --profile web add "github:ybbms777/dsh-deepseek-pricing"
 ```
 
-包内声明了 `dsh.bundle.patch`，`dsh plugin` 会把它作为 profile 层启用；重启 `dsh --profile web` 后在「设置 → 插件」中查看。
+包内声明了 `dsh.bundle.patch`，`dsh plugin` 会把它作为 profile 层启用；重启 `dsh --profile web` 后在「设置 → 插件」中查看。Peer：`@deepseek-ai/cordis` ^4.0.1（这两条 DSH 线都带 4.0.5），`@deepseek-ai/dsh-tools` `^0.0.1-rc.1 || ^0.2.0-rc.2`（覆盖 0.0.1-rc 与从 0.2.0-rc.2 起的 0.2.x，当前 DSH 安装时不需要 allow-version）。
 
 **为什么 Agent 需要它**：空闲价正好是高峰的 50%，只取决于请求什么时候跑完。高峰 = 北京时间（UTC+8）周一至周五 09:00–12:00、14:00–18:00（不含中国法定节假日）；其余全部时段 —— 工作日夜里、午休、整个周末、整个节假日 —— 都是半价。所以能等的批处理任务，成本直接减半。单价是 2026-10-15 誊录的内置价目表，节假日数据只覆盖 2026 年。纯本地算术：**不联网、不需要 API key、不写任何文件**。
 

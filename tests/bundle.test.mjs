@@ -29,6 +29,14 @@ test('package.json declares dsh.bundle.patch at the shipped cordis.patch.yml', (
   assert.match(patch, /^\s+-\s+id:\s+deepseek-pricing\s*$/m)
   assert.match(patch, /^\s+name:\s+dsh-deepseek-pricing\s*$/m)
   assert.equal(pkg.name, 'dsh-deepseek-pricing')
+  // DSH 0.2 satisfies @deepseek-ai/dsh-* peer ranges against its own runtime
+  // version with includePrerelease. This OR covers 0.0.1-rc.x and 0.2.x from
+  // 0.2.0-rc.2, and it does not cover the unverified 0.1.x gap.
+  const toolsRange = '^0.0.1-rc.1 || ^0.2.0-rc.2'
+  assert.equal(pkg.peerDependencies['@deepseek-ai/dsh-tools'], toolsRange)
+  assert.equal(pkg.devDependencies['@deepseek-ai/dsh-tools'], toolsRange)
+  assert.equal(pkg.peerDependencies['@deepseek-ai/cordis'], '^4.0.1')
+  assert.equal(pkg.devDependencies['@deepseek-ai/cordis'], '^4.0.1')
 })
 
 test('public copy states the bundled rate card and 2026-only holiday scope', () => {
