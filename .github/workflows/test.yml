@@ -13,6 +13,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         node: ['20', '22']
+        # Versions shipped by @deepseek-ai/dsh@0.0.1-rc.5 and @0.2.0-rc.2.
+        # cordis is 4.0.5 on both; dsh-tools matches the dsh version.
+        dsh-tools: ['0.0.1-rc.5', '0.2.0-rc.2']
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +25,9 @@ jobs:
           cache: npm
       - name: Install peers
         run: npm ci
-      - name: Tests (real cordis + ToolRegistry boot, plus the schedule rules)
+      - name: Select the dsh-tools line under test
+        run: npm install --no-save --package-lock=false @deepseek-ai/dsh-tools@${{ matrix.dsh-tools }} @deepseek-ai/cordis@4.0.5
+      - name: Tests (real cordis + tool registry boot, plus the schedule rules)
         run: node --test
       - name: Generated core must match the pinned panel commit
         run: node tools/sync-core.mjs --check

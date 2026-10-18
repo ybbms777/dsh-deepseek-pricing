@@ -1,7 +1,7 @@
 {
   "name": "dsh-deepseek-pricing",
   "version": "0.1.0",
-  "description": "DSH plugin: DeepSeek API peak/off-peak billing window tool (deepseek_pricing_tier) — tier, next switch, live prices.",
+  "description": "DSH plugin: DeepSeek API peak/off-peak window (deepseek_pricing_tier). Bundled rate card transcribed from the pricing page on 2026-10-15; China holiday calendar covers 2026 only.",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -13,17 +13,22 @@
     "tier.js",
     "cordis.patch.yml"
   ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
   "scripts": {
     "sync:core": "node tools/sync-core.mjs",
     "test": "node --test"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1"
+    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1 || ^0.2.0-rc.2"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1"
+    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1 || ^0.2.0-rc.2"
   },
   "keywords": [
     "dsh-plugin",
