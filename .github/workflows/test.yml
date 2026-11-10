@@ -30,14 +30,20 @@ jobs:
       - name: Tests (real cordis + tool registry boot, plus the schedule rules)
         run: node --test
       # The rule is arithmetic on instants, so the answer must not depend on where the host
-      # thinks it is. One runner, two host zones, identical results.
+      # thinks it is. One runner, two host zones, identical results. The offset line is printed
+      # first: it is what makes this step evidence instead of a no-op when a platform's Node
+      # happens to ignore TZ.
       - name: Tests under a UTC host
-        run: node --test
         env:
           TZ: UTC
+        run: |
+          node -p "'host zone: ' + process.env.TZ + ' offset=' + (new Date().getTimezoneOffset() / -60)"
+          node --test
       - name: Tests under a Beijing host
-        run: node --test
         env:
           TZ: Asia/Shanghai
+        run: |
+          node -p "'host zone: ' + process.env.TZ + ' offset=' + (new Date().getTimezoneOffset() / -60)"
+          node --test
       - name: Generated core must match the pinned panel commit
         run: node tools/sync-core.mjs --check
