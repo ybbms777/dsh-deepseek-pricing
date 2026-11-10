@@ -128,8 +128,48 @@ export function parseInstant(text) {
       'an offset-less value would be read in the host timezone',
     )
   }
+  // Date.parse happily rolls an impossible day into the next month: 2026-02-30 becomes
+  // 2026-03-02, 2026-04-31 becomes 2026-05-01, and 2026-02-29 (not a leap year) becomes
+  // 2026-03-01 — a silently different instant, possibly a different tier. Month 13/00 and
+  // minute 60 are rejected by Date.parse itself; the day-of-month is not. So the calendar is
+  // checked here, and then the parsed value is rendered back through the same offset and
+  // compared character for character with the input.
+  const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(Z|[+-]\d{2}:\d{2})$/.exec(s)
+  if (!parts) throw new Error(`at is not a valid ISO-8601 instant: ${s}`)
+  const [, yy, mo, dd, hh, mi, ss = '00', frac = '', off] = parts
+  const year = Number(yy), month = Number(mo), day = Number(dd), hour = Number(hh)
+  const minute = Number(mi), second = Number(ss)
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  if (day < 1 || day > daysInMonth) {
+    throw new Error(
+      `at must be a real calendar instant: ${yy}-${mo}-${dd} does not exist ` +
+      `(${yy}-${mo} has ${daysInMonth} days)`,
+    )
+  }
+  if (hour > 23 || minute > 59 || second > 59) {
+    throw new Error(
+      `at must be a real calendar instant: ${hh}:${mi}:${ss} is not a clock time ` +
+      '(hour 00-23, minute 00-59, second 00-59; "24:00" is a different day, not this one)',
+    )
+  }
+  if (frac.length > 3) {
+    throw new Error(
+      `at must be at millisecond precision or coarser (got .${frac}): ` +
+      'a JavaScript instant resolves to milliseconds, so the rest would be silently dropped',
+    )
+  }
   const ms = Date.parse(s)
   if (Number.isNaN(ms)) throw new Error(`at is not a valid date: ${s}`)
+
+  // Belt: render the parsed value back through the offset the caller wrote and demand an
+  // exact match. Anything the component checks above missed shows up here instead of shipping.
+  const offMin = off === 'Z' ? 0
+    : (off[0] === '-' ? -1 : 1) * (Number(off.slice(1, 3)) * 60 + Number(off.slice(4, 6)))
+  const back = new Date(ms + offMin * 60000).toISOString().slice(0, 19)
+  const wanted = `${yy}-${mo}-${dd}T${hh}:${mi}:${ss}`
+  if (back !== wanted) {
+    throw new Error(`at does not round-trip: ${s} parsed to ${back}${off === 'Z' ? 'Z' : off}`)
+  }
   return ms
 }
 
