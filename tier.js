@@ -1,6 +1,6 @@
 // GENERATED FILE — DO NOT EDIT BY HAND.
 // The peak/off-peak rule lives in one place: the panel's index.html CORE block.
-// Source: https://github.com/ybbms777/deepseek-pricing-panel @ 12246379bc5c94e5a62b69efb22fa4d3b1cd2e0b
+// Source: https://github.com/ybbms777/deepseek-pricing-panel @ c9108c085d9eb7642d2612c53614ed189925034d
 //         index.html
 // CORE sha256: b187f8cf8ef8611cb7ec2f5b9e77e3561eb95ecb912ece33919dd997507ab588
 // Regenerate: node tools/sync-core.mjs
