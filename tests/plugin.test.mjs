@@ -23,6 +23,7 @@ if (typeof ToolRegistry !== 'function') {
 import * as plugin from '../index.js'
 import { DATA_METADATA } from '../tier.js'
 
+const MAX_DAYS = plugin.MAX_DAYS
 const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
 function systemPromptStub() {
@@ -126,6 +127,35 @@ test('days>0 lists upcoming switches', async () => {
     { at_beijing: '2026-10-12 14:00:00', to: 'peak (full price)' },
     { at_beijing: '2026-10-12 18:00:00', to: 'off-peak (half price)' },
   ])
+})
+
+// The tool edge for the second numeric argument. The host's schema check fires first
+// (`invalid arguments: "days" must be an integer`, verified below) — the module-level
+// parseDays/evaluate guards exist for direct importers, which have no schema in front of them.
+test('the tool schema rejects a non-integer days before execute runs', async () => {
+  for (const bad of ['abc', 1.5, true, {}]) {
+    const res = await call({ at: '2026-10-12T09:30:00+08:00', days: bad })
+    assert.equal(res.isError, true, `days=${JSON.stringify(bad)} must be rejected`)
+    assert.match(res.content[0].text, /"days" must be an integer/)
+  }
+})
+
+test('parseDays and evaluate reject a bad days value for direct importers too', () => {
+  assert.equal(plugin.parseDays(undefined), 0)
+  assert.equal(plugin.parseDays(2), 2)
+  assert.equal(plugin.parseDays(99), MAX_DAYS, 'clamped to the documented max')
+  for (const bad of ['2', 'abc', -1, 1.5, true, {}, NaN]) {
+    assert.throws(() => plugin.parseDays(bad), /days must be a non-negative integer/, `parseDays(${String(bad)})`)
+  }
+  const ms = new Date('2026-10-12T09:30:00+08:00').getTime()
+  assert.throws(() => plugin.evaluate(ms, '3'), TypeError)
+  assert.throws(() => plugin.evaluate(ms, -1), TypeError)
+  assert.equal(plugin.evaluate(ms, 1).switch_window.days, 1)
+})
+
+test('a whole days value above the documented max is clamped, not silently truncated', async () => {
+  const huge = await call({ at: '2026-10-12T09:30:00+08:00', days: 99, format: 'json' })
+  assert.equal(JSON.parse(huge.content[0].text).switch_window.days, 14)
 })
 
 test('an unusable at value surfaces as a tool error, not a crash', async () => {

@@ -29,5 +29,15 @@ jobs:
         run: npm install --no-save --package-lock=false @deepseek-ai/dsh-tools@${{ matrix.dsh-tools }} @deepseek-ai/cordis@4.0.5
       - name: Tests (real cordis + tool registry boot, plus the schedule rules)
         run: node --test
+      # The rule is arithmetic on instants, so the answer must not depend on where the host
+      # thinks it is. One runner, two host zones, identical results.
+      - name: Tests under a UTC host
+        run: node --test
+        env:
+          TZ: UTC
+      - name: Tests under a Beijing host
+        run: node --test
+        env:
+          TZ: Asia/Shanghai
       - name: Generated core must match the pinned panel commit
         run: node tools/sync-core.mjs --check

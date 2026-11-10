@@ -8,7 +8,7 @@ export const name = 'dsh-deepseek-pricing'
 export const inject = ['tools']
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-const MAX_DAYS = 14
+export const MAX_DAYS = 14
 
 const pad = (n) => String(n).padStart(2, '0')
 const bjStamp = (p) => `${p.key} ${pad(p.h)}:${pad(p.mi)}:${pad(p.s)}`
@@ -33,6 +33,11 @@ const REASON_TEXT = {
  * same generated core (see tools/sync-core.mjs).
  */
 export function evaluate(atMs, days = 0) {
+  // Same rule as the instant guard: a non-integer day count must raise here, at the edge,
+  // not turn into a NaN horizon that only blows up three calls later inside calendarCoverage.
+  if (!Number.isInteger(days) || days < 0) {
+    throw new TypeError(`evaluate expects days to be a non-negative integer, got ${describeValue(days)}`)
+  }
   const tier = tierAt(atMs)
   const segs = daySegments(atMs)
   const p = bj(atMs)
@@ -126,6 +131,25 @@ export function parseInstant(text) {
   const ms = Date.parse(s)
   if (Number.isNaN(ms)) throw new Error(`at is not a valid date: ${s}`)
   return ms
+}
+
+function describeValue(v) {
+  if (v === null) return 'null'
+  if (typeof v === 'string') return `string "${v.slice(0, 40)}"`
+  if (typeof v === 'object') return Object.prototype.toString.call(v).slice(8, -1)
+  return String(v)
+}
+
+// Second line of defence behind the tool schema (which already rejects a non-integer `days`
+// with `invalid arguments: "days" must be an integer`): direct importers of this module get
+// the same rule instead of a NaN horizon. Integers only — no string tolerance, so one rule
+// has exactly one acceptance surface.
+export function parseDays(raw) {
+  if (raw === undefined || raw === null) return 0
+  if (!Number.isInteger(raw) || raw < 0) {
+    throw new Error(`days must be a non-negative integer, got ${describeValue(raw)}`)
+  }
+  return Math.min(MAX_DAYS, raw)
 }
 
 const priceProperties = Object.fromEntries(
@@ -268,7 +292,7 @@ export function apply(ctx) {
     isConcurrencySafe: () => true,
     async execute(args) {
       const atMs = args.at ? parseInstant(args.at) : Date.now()
-      const days = Math.max(0, Math.min(MAX_DAYS, Number(args.days ?? 0)))
+      const days = parseDays(args.days)
       return evaluate(atMs, days)
     },
   }))
