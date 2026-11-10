@@ -22,7 +22,7 @@ const ROOT = path.resolve(HERE, '..');
 const OUT = path.join(ROOT, 'tier.js');
 
 const PANEL_REPO = 'ybbms777/deepseek-pricing-panel';
-const PANEL_PIN = 'c9108c085d9eb7642d2612c53614ed189925034d';
+const PANEL_PIN = '73efb021e59c286ad2984ef8e6138ffd8e3da0c2';
 const DEFAULT_SOURCE = `https://raw.githubusercontent.com/${PANEL_REPO}/${PANEL_PIN}/index.html`;
 
 function readSource(spec) {

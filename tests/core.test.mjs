@@ -60,3 +60,28 @@ test('Beijing time is derived from the instant, not the host clock', () => {
   assert.equal(p.h, 1)
   assert.equal(p.wd, 1, 'Monday')
 })
+
+// Guard against the silent half-price bug: passing a Date (or an ISO string) used to make
+// `ts + TZ` a string concatenation → Invalid Date → NaN fields → 'off', so a peak instant
+// was reported as the half-price tier with no error and a wrong next_switch. Every entry
+// point now throws TypeError on a non-finite instant; the number path is untouched.
+test('a non-finite instant throws instead of silently reporting off-peak', () => {
+  const peak = at('2026-11-10T09:30:00+08:00') // Tuesday, inside 09:00-12:00
+  assert.equal(tierAt(peak), 'peak', 'the number path still answers peak')
+
+  const bad = [
+    ['Date', new Date(peak)],
+    ['ISO string', '2026-11-10T09:30:00+08:00'],
+    ['offset-less string', '2026-11-10T09:30'],
+    ['undefined', undefined],
+    ['null', null],
+    ['NaN', NaN],
+    ['Infinity', Infinity],
+  ]
+  for (const [label, value] of bad) {
+    for (const [name, fn] of [['tierAt', tierAt], ['nextSwitch', nextSwitch], ['daySegments', daySegments], ['bj', bj]]) {
+      assert.throws(() => fn(value), TypeError, `${name}(${label}) must throw TypeError`)
+    }
+  }
+  assert.throws(() => tierAt(new Date(peak)), /tierAt expects a finite millisecond timestamp \(number\), got Date/)
+})

@@ -62,6 +62,15 @@ node tools/sync-core.mjs --check  # CI: fail if tier.js drifted from the pin
 
 The generated file carries the source commit and the CORE block's SHA-256, and `tests/core.test.mjs` asserts the header — so the model-facing tool and the human-facing HTML panel can never disagree about the rule.
 
+**Instant contract (for anyone importing `./tier.js` directly):** every time argument is a
+**finite number of milliseconds since the epoch** — `tierAt(ms)`, `nextSwitch(ms)`,
+`daySegments(ms)`, `bj(ms)`, `calendarCoverage(startMs, endMs)`. A `Date`, an ISO string,
+`null`, `undefined`, `NaN` or `Infinity` throws `TypeError` naming the function and the
+received type. It does **not** fall back to "off": that fallback used to turn a peak instant
+into the half-price tier without an error. The tool itself takes an ISO-8601 string in a
+different layer (`index.js` parses and validates it, and rejects an offset-less `at`), so
+model callers never see this boundary.
+
 ## Tests
 
 ```sh

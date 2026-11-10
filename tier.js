@@ -1,8 +1,8 @@
 // GENERATED FILE — DO NOT EDIT BY HAND.
 // The peak/off-peak rule lives in one place: the panel's index.html CORE block.
-// Source: https://github.com/ybbms777/deepseek-pricing-panel @ c9108c085d9eb7642d2612c53614ed189925034d
+// Source: https://github.com/ybbms777/deepseek-pricing-panel @ 73efb021e59c286ad2984ef8e6138ffd8e3da0c2
 //         index.html
-// CORE sha256: b187f8cf8ef8611cb7ec2f5b9e77e3561eb95ecb912ece33919dd997507ab588
+// CORE sha256: 87ffbf7eaed1ce4881c2dea5c7b68c37d5acfdf0b653f3bc3578837b84e88135
 // Regenerate: node tools/sync-core.mjs
 // ---- 纯逻辑：不依赖 DOM，可在 node 中独立测试 ----
 const TZ = 8 * 3600 * 1000; // 北京时间 = UTC+8
@@ -24,8 +24,20 @@ const HOLIDAYS = new Set([
   ...range('2026-10-01','2026-10-07')  // 国庆
 ]);
 
+// 入参只接受「有限毫秒时间戳」。Date 对象 / ISO 串 / null / undefined 一律抛 TypeError，
+// 绝不静默降级：旧实现在 ts+TZ 时做字符串拼接，Invalid Date → 各字段 NaN → 判定落到 "off"，
+// 也就是把高峰错报成半价而不报错（价格错 2 倍且无人察觉）。见 dsh-deepseek-pricing 的 RED 用例。
+function assertInstant(ts, fn){ // fn: 出错的函数名，仅用于错误信息
+  if (typeof ts !== 'number' || !Number.isFinite(ts)) {
+    const shown = ts === null ? 'null' : Array.isArray(ts) ? 'array'
+      : (typeof ts === 'object' && ts !== null) ? Object.prototype.toString.call(ts).slice(8, -1)
+      : (typeof ts === 'string' ? 'string ' + JSON.stringify(ts.slice(0, 40)) : String(ts));
+    throw new TypeError(fn + ' expects a finite millisecond timestamp (number), got ' + shown);
+  }
+  return ts;
+}
 function bj(ts){ // 拆出北京时间各字段
-  const d=new Date(ts+TZ);
+  const d=new Date(assertInstant(ts,'bj')+TZ);
   return {y:d.getUTCFullYear(),mo:d.getUTCMonth()+1,d:d.getUTCDate(),h:d.getUTCHours(),
           mi:d.getUTCMinutes(),s:d.getUTCSeconds(),wd:d.getUTCDay(),key:ymd(d)};
 }
@@ -36,14 +48,15 @@ function isPeakHour(y,mo,d,h){
   if(wd===0||wd===6) return false;                          // 周末 → 空闲
   return (h>=9&&h<12)||(h>=14&&h<18);                       // 工作日高峰两段
 }
-function tierAt(ts){ const p=bj(ts); return isPeakHour(p.y,p.mo,p.d,p.h)?'peak':'off'; }
+function tierAt(ts){ const p=bj(assertInstant(ts,'tierAt')); return isPeakHour(p.y,p.mo,p.d,p.h)?'peak':'off'; }
 function nextSwitch(ts){ // 高峰/空闲边界都落在整点，逐小时向前找即可
+  assertInstant(ts,'nextSwitch');
   const base=Math.floor(ts/3600000)*3600000, cur=tierAt(ts);
   for(let i=1;i<=24*15;i++){ const t=base+i*3600000; if(tierAt(t)!==cur) return t; }
   return null;
 }
 function daySegments(ts){ // 返回该北京时间日的 [{h0,h1}] 高峰段
-  const p=bj(ts), segs=[]; let open=null;
+  const p=bj(assertInstant(ts,'daySegments')), segs=[]; let open=null;
   for(let h=0;h<=24;h++){
     const peak = h<24 ? isPeakHour(p.y,p.mo,p.d,h) : false;
     if(peak && open===null) open=h;
@@ -66,6 +79,7 @@ const DATA_METADATA = {
 };
 // Coverage is measured over a half-open time interval [start, end).
 function calendarCoverage(start, end = start + 1) {
+  assertInstant(start,'calendarCoverage'); assertInstant(end,'calendarCoverage');
   const missing_years = [];
   for (let y = bj(start).y; y <= bj(Math.max(start, end - 1)).y; y++) {
     if (!DATA_METADATA.holiday_years.includes(y)) missing_years.push(y);
@@ -78,7 +92,7 @@ function coverageWarnings(start, end) {
     ? ['节假日数据未覆盖 ' + missing_years.join('、') + ' 年；该年份的时段、切换和汇总仅按周规则估算，需核对官方放假安排。'] : [];
 }
 function tierReason(ts) {
-  const p = bj(ts);
+  const p = bj(assertInstant(ts,'tierReason'));
   return HOLIDAYS.has(p.key) ? 'public holiday'
     : (p.wd === 0 || p.wd === 6) ? 'weekend'
     : tierAt(ts) === 'peak' ? 'inside the weekday peak windows' : 'outside the weekday peak windows';

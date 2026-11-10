@@ -97,6 +97,37 @@ export function evaluate(atMs, days = 0) {
   return value
 }
 
+// An ISO-8601 instant must carry its own offset. Without one, `new Date(at)` is parsed in
+// the *host* timezone: measured under TZ=UTC, "2026-11-10T09:30" lands on Beijing 17:30 and
+// flips a peak answer to off-peak. Date-only strings are worse — they land on 00:00 UTC,
+// i.e. Beijing 08:00. Neither is rejected by Date.parse, so the offset is required here and
+// the answer never depends on where the host happens to be. (ADR-0007 in docs/api.md pins
+// the same rule at the HTTP layer.)
+const INSTANT_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/
+
+export function parseInstant(text) {
+  if (typeof text !== 'string') throw new Error(`at must be an ISO-8601 string, got ${typeof text}`)
+  const s = text.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    throw new Error(
+      `at must be an instant, not a date: "${s}" — add a time and an offset, ` +
+      'e.g. "2026-10-12T09:30:00+08:00" (Beijing) or "2026-10-12T01:30:00Z"',
+    )
+  }
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) {
+    throw new Error(`at is not a valid ISO-8601 instant: ${s}`)
+  }
+  if (!INSTANT_WITH_OFFSET.test(s)) {
+    throw new Error(
+      `at must be an ISO-8601 instant carrying an explicit offset (Z or ±HH:MM), got "${s}" — ` +
+      'an offset-less value would be read in the host timezone',
+    )
+  }
+  const ms = Date.parse(s)
+  if (Number.isNaN(ms)) throw new Error(`at is not a valid date: ${s}`)
+  return ms
+}
+
 const priceProperties = Object.fromEntries(
   Object.keys(PRICES).map((m) => [
     m,
@@ -131,7 +162,9 @@ export function apply(ctx) {
       at: {
         type: 'string',
         description:
-          'ISO-8601 instant to evaluate, e.g. "2026-10-12T09:30:00+08:00". Defaults to now.',
+          'ISO-8601 instant to evaluate, carrying an explicit offset: ' +
+          '"2026-10-12T09:30:00+08:00" (Beijing) or "2026-10-12T01:30:00Z". Defaults to now. ' +
+          'A value without an offset (or a bare date) is rejected rather than guessed.',
       },
       days: {
         type: 'integer',
@@ -234,8 +267,7 @@ export function apply(ctx) {
     },
     isConcurrencySafe: () => true,
     async execute(args) {
-      const atMs = args.at ? new Date(args.at).getTime() : Date.now()
-      if (Number.isNaN(atMs)) throw new Error(`at is not a valid date: ${args.at}`)
+      const atMs = args.at ? parseInstant(args.at) : Date.now()
       const days = Math.max(0, Math.min(MAX_DAYS, Number(args.days ?? 0)))
       return evaluate(atMs, days)
     },

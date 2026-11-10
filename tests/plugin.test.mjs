@@ -131,7 +131,28 @@ test('days>0 lists upcoming switches', async () => {
 test('an unusable at value surfaces as a tool error, not a crash', async () => {
   const res = await call({ at: 'not-a-date' })
   assert.equal(res.isError, true)
-  assert.match(res.content[0].text, /not a valid date/)
+  assert.match(res.content[0].text, /not a valid ISO-8601 instant/)
+})
+
+// D2: an offset-less `at` used to be parsed in the host timezone — "2026-11-10T09:30" read as
+// Beijing 17:30 (off-peak) on a UTC host and as 09:30 (peak) on a Beijing host. The answer
+// must not depend on the host, so such a value is rejected instead of guessed.
+test('an at value without an explicit offset is rejected, not read in the host timezone', async () => {
+  const offsetless = await call({ at: '2026-11-10T09:30' })
+  assert.equal(offsetless.isError, true)
+  assert.match(offsetless.content[0].text, /explicit offset/)
+
+  const dateOnly = await call({ at: '2026-11-10' })
+  assert.equal(dateOnly.isError, true)
+  assert.match(dateOnly.content[0].text, /not a date/)
+
+  // Both spellings of the same instant must agree: Beijing 09:30 == 01:30Z.
+  const bj = await call({ at: '2026-11-10T09:30:00+08:00', format: 'json' })
+  const z = await call({ at: '2026-11-10T01:30:00Z', format: 'json' })
+  assert.equal(bj.isError, false)
+  assert.deepEqual(JSON.parse(z.content[0].text), JSON.parse(bj.content[0].text))
+  assert.equal(JSON.parse(bj.content[0].text).tier, 'peak')
+  assert.equal(JSON.parse(bj.content[0].text).next_switch_beijing, '2026-11-10 12:00:00')
 })
 
 test('the tool declares itself concurrency-safe (read-only arithmetic)', async () => {
